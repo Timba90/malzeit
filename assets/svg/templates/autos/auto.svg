@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300">
+  <!-- Einfaches Auto: 6 Felder, 2 Ebenen -->
+  <g data-layer="0">
+    <!-- Karosserie -->
+    <path id="feld-karosserie" fill="#FFFFFF" stroke="#424242" stroke-width="3"
+      d="M40 190 L40 160 Q40 150 55 148 L85 145 Q105 110 150 108 Q195 110 215 145 L245 148 Q260 150 260 162 L260 190 Q260 200 248 200 L52 200 Q40 200 40 190 Z"/>
+    <!-- Fenster vorne -->
+    <path id="feld-fenster1" fill="#FFFFFF" stroke="#424242" stroke-width="3"
+      d="M100 143 Q115 118 148 116 L148 143 Z"/>
+    <!-- Fenster hinten -->
+    <path id="feld-fenster2" fill="#FFFFFF" stroke="#424242" stroke-width="3"
+      d="M156 116 Q190 118 205 143 L156 143 Z"/>
+  </g>
+  <g data-layer="1">
+    <!-- Reifen -->
+    <circle id="feld-reifen1" cx="90" cy="200" r="24"
+      fill="#FFFFFF" stroke="#424242" stroke-width="3"/>
+    <circle id="feld-reifen2" cx="212" cy="200" r="24"
+      fill="#FFFFFF" stroke="#424242" stroke-width="3"/>
+    <!-- Felgen -->
+    <circle id="feld-felge1" cx="90" cy="200" r="10"
+      fill="#FFFFFF" stroke="#424242" stroke-width="3"/>
+    <circle id="feld-felge2" cx="212" cy="200" r="10"
+      fill="#FFFFFF" stroke="#424242" stroke-width="3"/>
+    <!-- Scheinwerfer (nur Linie) -->
+    <circle id="linie-licht" cx="252" cy="168" r="7" fill="none" stroke="#424242" stroke-width="3"/>
+  </g>
+</svg>

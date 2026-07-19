@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300">
+  <!-- Einfacher Dino für 3-6 Jahre: 5 Felder, 2 Ebenen -->
+  <g data-layer="0">
+    <!-- Körper -->
+    <path id="feld-koerper" fill="#FFFFFF" stroke="#424242" stroke-width="3"
+      d="M60 180 Q60 120 130 115 Q220 110 235 160 Q245 200 210 215 Q150 235 95 220 Q60 210 60 180 Z"/>
+    <!-- Bauch -->
+    <ellipse id="feld-bauch" cx="150" cy="190" rx="55" ry="28"
+      fill="#FFFFFF" stroke="#424242" stroke-width="3"/>
+    <!-- Kopf -->
+    <circle id="feld-kopf" cx="230" cy="95" r="42"
+      fill="#FFFFFF" stroke="#424242" stroke-width="3"/>
+  </g>
+  <g data-layer="1">
+    <!-- Rückenplatten -->
+    <polygon id="feld-platte1" points="110,118 130,85 150,116"
+      fill="#FFFFFF" stroke="#424242" stroke-width="3"/>
+    <polygon id="feld-platte2" points="155,114 178,80 198,112"
+      fill="#FFFFFF" stroke="#424242" stroke-width="3"/>
+    <!-- Auge (nur Linie) -->
+    <circle id="linie-auge" cx="242" cy="88" r="6" fill="none" stroke="#424242" stroke-width="3"/>
+    <!-- Beine (nur Linien) -->
+    <line id="linie-bein1" x1="105" y1="218" x2="105" y2="250" stroke="#424242" stroke-width="4"/>
+    <line id="linie-bein2" x1="185" y1="218" x2="185" y2="250" stroke="#424242" stroke-width="4"/>
+  </g>
+</svg>
