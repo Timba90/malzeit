@@ -8,6 +8,7 @@ void main() {
     'assets/svg/templates/dinos/dino.svg': 5,
     'assets/svg/templates/autos/auto.svg': 7,
     'assets/svg/templates/schlangen/schlange.svg': 5,
+    'assets/svg/templates/blumen/blume.svg': 10,
   };
   cases.forEach((path, expectedFields) {
     test('$path -> $expectedFields Felder', () {

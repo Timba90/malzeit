@@ -1,14 +1,9 @@
 import 'package:flutter/material.dart';
 
-import '../models/decoration_models.dart' as deco;
 import '../models/drawing_models.dart';
 import '../models/svg_template.dart';
 
 /// Werkzeug, das gerade aktiv ist.
-///
-/// brush = Pinsel (solid / star / glitter / rainbow via brushType)
-/// eraser = Radiergummi
-/// star / glitter sind jetzt Pinsel-Typen, keine Stempel mehr.
 enum Tool { brush, eraser }
 
 /// Mal-Modus der App.
@@ -19,42 +14,37 @@ class DrawingProvider extends ChangeNotifier {
   // ---- Werkzeug & Farbe ----
   Tool _currentTool = Tool.brush;
   BrushType _brushType = BrushType.solid;
-  Color _currentColor = const Color(0xFFE53935); // Rot als Startfarbe
+  Color _currentColor = const Color(0xFFF44336); // Rot als Startfarbe
   double _strokeWidth = 14.0;
   DrawMode _mode = DrawMode.fields;
 
   // ---- Leinwand-Inhalt ----
   final List<DrawStroke> _strokes = [];
   DrawStroke? _activeStroke;
-  final List<deco.Decoration> _decorations = [];
 
   // ---- Vorlage & Felder ----
   SvgTemplate? _template;
   String? _selectedFieldId;
 
-  // ---- Kindgerechte Farbpalette (10 Farben + Regenbogen) ----
+  static const double minStrokeWidth = 4.0;
+  static const double maxStrokeWidth = 40.0;
+
+  // ---- Kindgerechte Farbpalette ----
   static const List<Color> palette = [
-    Color(0xFFE53935), // Rot
-    Color(0xFFFB8C00), // Orange
-    Color(0xFFFDD835), // Gelb
-    Color(0xFF43A047), // Grün
-    Color(0xFF1E88E5), // Blau
-    Color(0xFF8E24AA), // Lila
-    Color(0xFFD81B60), // Pink
-    Color(0xFF6D4C41), // Braun
+    Color(0xFFF44336), // Rot
+    Color(0xFFFF9800), // Orange
+    Color(0xFFFFEB3B), // Gelb
+    Color(0xFF8BC34A), // Hellgrün
+    Color(0xFF2E7D32), // Dunkelgrün
+    Color(0xFF4FC3F7), // Himmelblau
+    Color(0xFF1565C0), // Blau
+    Color(0xFF9C27B0), // Lila
+    Color(0xFFF48FB1), // Rosa
+    Color(0xFFFFCC80), // Hautton
+    Color(0xFF795548), // Braun
+    Color(0xFF9E9E9E), // Grau
     Color(0xFF000000), // Schwarz
     Color(0xFFFFFFFF), // Weiß
-  ];
-
-  /// Regenbogen-Farbliste für den Regenbogen-Pinsel.
-  static const List<Color> rainbowColors = [
-    Color(0xFFFF0000), // Rot
-    Color(0xFFFF7F00), // Orange
-    Color(0xFFFFFF00), // Gelb
-    Color(0xFF00FF00), // Grün
-    Color(0xFF0000FF), // Blau
-    Color(0xFF4B0082), // Indigo
-    Color(0xFF9400D3), // Violett
   ];
 
   // ---- Getter ----
@@ -65,9 +55,10 @@ class DrawingProvider extends ChangeNotifier {
   DrawMode get mode => _mode;
   List<DrawStroke> get strokes => List.unmodifiable(_strokes);
   DrawStroke? get activeStroke => _activeStroke;
-  List<deco.Decoration> get decorations => List.unmodifiable(_decorations);
   SvgTemplate? get template => _template;
   String? get selectedFieldId => _selectedFieldId;
+  bool get canUndo => _strokes.isNotEmpty || _activeStroke != null;
+  bool get hasContent => canUndo;
 
   SvgField? get selectedField {
     if (_template == null || _selectedFieldId == null) return null;
@@ -89,39 +80,19 @@ class DrawingProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Farbe wählen. Der gewählte Pinsel-Typ bleibt erhalten, nur der
+  /// Regenbogen-Pinsel (ignoriert Farben) wechselt zurück auf solid.
   void setColor(Color color) {
     _currentColor = color;
-    // Bei Farbwahl auf einen soliden Pinsel zurückschalten (außer Regenbogen war aktiv)
-    if (_brushType != BrushType.rainbow) {
+    if (_brushType == BrushType.rainbow) {
       _brushType = BrushType.solid;
     }
     if (_currentTool == Tool.eraser) _currentTool = Tool.brush;
     notifyListeners();
   }
 
-  /// Regenbogen-Pinsel aktivieren.
-  void selectRainbow() {
-    _brushType = BrushType.rainbow;
-    _currentTool = Tool.brush;
-    notifyListeners();
-  }
-
-  /// Sternen-Pinsel aktivieren.
-  void selectStarBrush() {
-    _brushType = BrushType.star;
-    _currentTool = Tool.brush;
-    notifyListeners();
-  }
-
-  /// Glitzer-Pinsel aktivieren.
-  void selectGlitterBrush() {
-    _brushType = BrushType.glitter;
-    _currentTool = Tool.brush;
-    notifyListeners();
-  }
-
   void setStrokeWidth(double width) {
-    _strokeWidth = width.clamp(4.0, 40.0);
+    _strokeWidth = width.clamp(minStrokeWidth, maxStrokeWidth);
     notifyListeners();
   }
 
@@ -133,8 +104,9 @@ class DrawingProvider extends ChangeNotifier {
   // ---- Vorlagen ----
   void setTemplate(SvgTemplate? template) {
     _template = template;
-    _selectedFieldId =
-        template != null && template.fields.isNotEmpty ? template.fields.first.id : null;
+    _selectedFieldId = template != null && template.fields.isNotEmpty
+        ? template.fields.first.id
+        : null;
     clearAll();
   }
 
@@ -144,9 +116,11 @@ class DrawingProvider extends ChangeNotifier {
   }
 
   /// Wählt das Feld an der gegebenen Position (SVG-Koordinaten).
+  /// Felder höherer Ebenen liegen "oben" und gewinnen bei Überlappung.
   bool selectFieldAt(Offset svgPoint) {
     if (_template == null) return false;
-    final sorted = [..._template!.fields]..sort((a, b) => b.layer.compareTo(a.layer));
+    final sorted = [..._template!.fields]
+      ..sort((a, b) => b.layer.compareTo(a.layer));
     for (final field in sorted) {
       if (field.contains(svgPoint)) {
         _selectedFieldId = field.id;
@@ -159,78 +133,61 @@ class DrawingProvider extends ChangeNotifier {
 
   // ---- Malen ----
   void startStroke(Offset svgPoint) {
-    if (_currentTool == Tool.eraser) {
-      _startDrawStroke(svgPoint);
-      return;
-    }
-    // Pinsel — alle BrushTypes malen Striche
-    _startDrawStroke(svgPoint);
-  }
-
-  void _startDrawStroke(Offset svgPoint) {
     if (_mode == DrawMode.fields && _selectedFieldId == null) return;
 
+    final isEraser = _currentTool == Tool.eraser;
     _activeStroke = DrawStroke(
       color: _currentColor,
       strokeWidth: _strokeWidth,
-      isEraser: _currentTool == Tool.eraser,
+      isEraser: isEraser,
       fieldId: _mode == DrawMode.fields ? _selectedFieldId : null,
-      brushType: _currentTool == Tool.eraser ? BrushType.solid : _brushType,
+      brushType: isEraser ? BrushType.solid : _brushType,
     );
-    _activeStroke!.points.add(DrawPoint(
-      position: svgPoint,
-      color: _currentColor,
-      strokeWidth: _strokeWidth,
-      isEraser: _currentTool == Tool.eraser,
-      fieldId: _activeStroke!.fieldId,
-    ));
+    _activeStroke!.points
+        .add(DrawPoint(position: svgPoint, color: _currentColor));
     notifyListeners();
   }
 
   void extendStroke(Offset svgPoint) {
-    if (_activeStroke == null) return;
+    final stroke = _activeStroke;
+    if (stroke == null) return;
 
-    // Für Regenbogen-Pinsel: HSL-Hue kontinuierlich rotieren (wie rainbowCanvas)
+    // Regenbogen-Pinsel: HSV-Hue kontinuierlich rotieren
     Color pointColor = _currentColor;
-    if (_activeStroke!.brushType == BrushType.rainbow) {
-      final hue = (_activeStroke!.points.length * 4.0) % 360.0;
+    if (stroke.brushType == BrushType.rainbow) {
+      final hue = (stroke.points.length * 4.0) % 360.0;
       pointColor = HSVColor.fromAHSV(1.0, hue, 1.0, 1.0).toColor();
     }
 
-    _activeStroke!.points.add(DrawPoint(
-      position: svgPoint,
-      color: pointColor,
-      strokeWidth: _strokeWidth,
-      isEraser: _activeStroke!.isEraser,
-      fieldId: _activeStroke!.fieldId,
-    ));
+    stroke.points.add(DrawPoint(position: svgPoint, color: pointColor));
     notifyListeners();
   }
 
   void endStroke() {
-    if (_activeStroke == null) return;
-    if (_activeStroke!.points.isNotEmpty) {
-      _strokes.add(_activeStroke!);
+    final stroke = _activeStroke;
+    if (stroke == null) return;
+    if (stroke.points.isNotEmpty) {
+      _strokes.add(stroke);
     }
     _activeStroke = null;
     notifyListeners();
   }
 
-  /// Direkt eine Dekoration setzen (wird nicht mehr verwendet, aber für
-  /// eventuelle zukünftige Stempel-Funktion beibehalten).
-  void addDecoration(Offset svgPoint) {
-    _decorations.add(deco.Decoration(
-      position: svgPoint,
-      type: deco.DecorationType.star,
-      fieldId: _mode == DrawMode.fields ? _selectedFieldId : null,
-    ));
+  /// Macht den letzten Strich rückgängig.
+  void undo() {
+    if (_activeStroke != null) {
+      _activeStroke = null;
+    } else if (_strokes.isNotEmpty) {
+      _strokes.removeLast();
+    } else {
+      return;
+    }
     notifyListeners();
   }
 
   /// Löscht das gesamte Bild.
   void clearAll() {
     _strokes.clear();
-    _decorations.clear();
     _activeStroke = null;
     notifyListeners();
   }

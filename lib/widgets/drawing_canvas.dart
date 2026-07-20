@@ -1,13 +1,13 @@
-import 'dart:math' show cos, sin, pi;
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../models/decoration_models.dart' as deco;
 import '../models/drawing_models.dart';
+import '../models/svg_template.dart';
 import '../state/drawing_provider.dart';
 
-/// Die Malfläche. Zeichnet Vorlagen-Outline, Striche und Dekorationen.
+/// Die Malfläche. Zeichnet Vorlagen-Outline und Striche.
 /// Im Feld-Modus werden alle Striche auf das ausgewählte Feld beschnitten.
 class DrawingCanvas extends StatelessWidget {
   const DrawingCanvas({super.key});
@@ -21,10 +21,10 @@ class DrawingCanvas extends StatelessWidget {
       builder: (context, constraints) {
         final canvasSize = Size(constraints.maxWidth, constraints.maxHeight);
         final vb = template?.viewBox ?? const Size(300, 300);
-        final scale = (canvasSize.width / vb.width).clamp(0.0, double.infinity) <
-                canvasSize.height / vb.height
-            ? canvasSize.width / vb.width
-            : canvasSize.height / vb.height;
+        final scale = (vb.width <= 0 || vb.height <= 0)
+            ? 1.0
+            : math.min(
+                canvasSize.width / vb.width, canvasSize.height / vb.height);
         final offset = Offset(
           (canvasSize.width - vb.width * scale) / 2,
           (canvasSize.height - vb.height * scale) / 2,
@@ -44,6 +44,7 @@ class DrawingCanvas extends StatelessWidget {
           },
           onPanUpdate: (d) => provider.extendStroke(toSvg(d.localPosition)),
           onPanEnd: (_) => provider.endStroke(),
+          onPanCancel: () => provider.endStroke(),
           child: Container(
             color: Colors.white,
             child: CustomPaint(
@@ -90,12 +91,7 @@ class _DrawingPainter extends CustomPainter {
       _paintStroke(canvas, active, template);
     }
 
-    // 3) Dekorationen (alten Stempel — wird kaum noch genutzt)
-    for (final d in provider.decorations) {
-      _paintDecoration(canvas, d, template);
-    }
-
-    // 4) Vorlagen-Outline über allem
+    // 3) Vorlagen-Outline über allem
     if (template != null) {
       _paintOutline(canvas, template);
       final sel = provider.selectedField;
@@ -113,7 +109,7 @@ class _DrawingPainter extends CustomPainter {
 
   // ===================== Stroke Rendering =====================
 
-  void _paintStroke(Canvas canvas, DrawStroke stroke, template) {
+  void _paintStroke(Canvas canvas, DrawStroke stroke, SvgTemplate? template) {
     if (stroke.points.isEmpty) return;
 
     switch (stroke.brushType) {
@@ -132,16 +128,20 @@ class _DrawingPainter extends CustomPainter {
     }
   }
 
-  void _withFieldClip(Canvas canvas, DrawStroke stroke, template, VoidCallback draw) {
+  void _withFieldClip(Canvas canvas, DrawStroke stroke, SvgTemplate? template,
+      VoidCallback draw) {
     final fieldId = stroke.fieldId;
     if (fieldId != null && template != null) {
-      final field = template.fields
-          .where((f) => f.id == fieldId)
-          .cast<dynamic>()
-          .firstOrNull;
+      SvgField? field;
+      for (final f in template.fields) {
+        if (f.id == fieldId) {
+          field = f;
+          break;
+        }
+      }
       if (field != null) {
         canvas.save();
-        canvas.clipPath(field.path as Path);
+        canvas.clipPath(field.path);
         draw();
         canvas.restore();
         return;
@@ -151,21 +151,22 @@ class _DrawingPainter extends CustomPainter {
   }
 
   // --- Solid (normaler Pinsel + Radierer) ---
-  void _paintSolidStroke(Canvas canvas, DrawStroke stroke, template) {
+  void _paintSolidStroke(
+      Canvas canvas, DrawStroke stroke, SvgTemplate? template) {
     _withFieldClip(canvas, stroke, template, () {
+      final color = stroke.isEraser ? Colors.white : stroke.color;
+      final pts = stroke.points;
+      if (pts.length == 1) {
+        canvas.drawCircle(pts.first.position, stroke.strokeWidth / 2,
+            Paint()..color = color);
+        return;
+      }
       final paint = Paint()
         ..strokeCap = StrokeCap.round
         ..strokeJoin = StrokeJoin.round
         ..strokeWidth = stroke.strokeWidth
         ..style = PaintingStyle.stroke
-        ..color = stroke.isEraser ? Colors.white : stroke.color;
-
-      final pts = stroke.points;
-      if (pts.length == 1) {
-        canvas.drawCircle(pts.first.position, stroke.strokeWidth / 2,
-            Paint()..color = stroke.isEraser ? Colors.white : stroke.color);
-        return;
-      }
+        ..color = color;
       final path = Path()..moveTo(pts.first.position.dx, pts.first.position.dy);
       for (var i = 1; i < pts.length; i++) {
         path.lineTo(pts[i].position.dx, pts[i].position.dy);
@@ -175,9 +176,15 @@ class _DrawingPainter extends CustomPainter {
   }
 
   // --- Regenbogen-Pinsel: Segment-für-Segment mit Punkt-Farbe ---
-  void _paintRainbowStroke(Canvas canvas, DrawStroke stroke, template) {
+  void _paintRainbowStroke(
+      Canvas canvas, DrawStroke stroke, SvgTemplate? template) {
     _withFieldClip(canvas, stroke, template, () {
       final pts = stroke.points;
+      if (pts.length == 1) {
+        canvas.drawCircle(pts.first.position, stroke.strokeWidth / 2,
+            Paint()..color = pts.first.color);
+        return;
+      }
       for (var i = 1; i < pts.length; i++) {
         final paint = Paint()
           ..strokeCap = StrokeCap.round
@@ -186,19 +193,14 @@ class _DrawingPainter extends CustomPainter {
           ..color = pts[i].color;
         canvas.drawLine(pts[i - 1].position, pts[i].position, paint);
       }
-      // Ersten Punkt als Kreis zeichnen falls nur 1 Punkt
-      if (pts.length == 1) {
-        canvas.drawCircle(pts.first.position, stroke.strokeWidth / 2,
-            Paint()..color = pts.first.color);
-      }
     });
   }
 
   // --- Sternen-Pinsel: entlang des Pfads kleine Sterne verteilen ---
-  void _paintStarTrail(Canvas canvas, DrawStroke stroke, template) {
+  void _paintStarTrail(
+      Canvas canvas, DrawStroke stroke, SvgTemplate? template) {
     _withFieldClip(canvas, stroke, template, () {
       final pts = stroke.points;
-      // Sterne in regelmäßigen Abständen platzieren
       final spacing = stroke.strokeWidth * 1.5;
       var accumulated = spacing; // sofort ersten Stern setzen
       for (var i = 1; i < pts.length; i++) {
@@ -207,32 +209,31 @@ class _DrawingPainter extends CustomPainter {
         final dist = (cur - prev).distance;
         if (dist == 0) continue;
         final dir = (cur - prev) / dist;
-        var pos = prev;
         while (accumulated <= dist) {
-          pos = prev + dir * accumulated;
+          final pos = prev + dir * accumulated;
           _drawStarShape(canvas, pos, stroke.strokeWidth * 0.9, stroke.color);
           accumulated += spacing;
         }
         accumulated -= dist;
       }
       // Mindestens einen Stern malen (Tap)
-      if (pts.isNotEmpty) {
-        _drawStarShape(canvas, pts.first.position, stroke.strokeWidth * 0.9, stroke.color);
-      }
+      _drawStarShape(
+          canvas, pts.first.position, stroke.strokeWidth * 0.9, stroke.color);
     });
   }
 
   // --- Glitzer-Pinsel: bunte kleine Punkte entlang des Pfads ---
-  void _paintGlitterTrail(Canvas canvas, DrawStroke stroke, template) {
+  void _paintGlitterTrail(
+      Canvas canvas, DrawStroke stroke, SvgTemplate? template) {
     _withFieldClip(canvas, stroke, template, () {
-      final pts = stroke.points;
-      final glitterColors = [
-        const Color(0xFFFFD54F),
-        const Color(0xFFFF8A80),
-        const Color(0xFF80D8FF),
-        const Color(0xFFB9F6CA),
-        const Color(0xFFE1BEE7),
+      const glitterColors = [
+        Color(0xFFFFD54F),
+        Color(0xFFFF8A80),
+        Color(0xFF80D8FF),
+        Color(0xFFB9F6CA),
+        Color(0xFFE1BEE7),
       ];
+      final pts = stroke.points;
       final spacing = stroke.strokeWidth * 0.8;
       var accumulated = 0.0;
       var colorIdx = 0;
@@ -256,6 +257,11 @@ class _DrawingPainter extends CustomPainter {
         }
         accumulated -= dist;
       }
+      // Tap ohne Bewegung: einen Glitzerpunkt setzen
+      if (pts.length == 1) {
+        canvas.drawCircle(pts.first.position, stroke.strokeWidth * 0.25,
+            Paint()..color = glitterColors.first);
+      }
     });
   }
 
@@ -271,9 +277,9 @@ class _DrawingPainter extends CustomPainter {
     final inner = outer * 0.45;
     for (var i = 0; i < spikes * 2; i++) {
       final r = i.isEven ? outer : inner;
-      final angle = (i * pi / spikes) - pi / 2;
-      final x = center.dx + r * cos(angle);
-      final y = center.dy + r * sin(angle);
+      final angle = (i * math.pi / spikes) - math.pi / 2;
+      final x = center.dx + r * math.cos(angle);
+      final y = center.dy + r * math.sin(angle);
       if (i == 0) {
         path.moveTo(x, y);
       } else {
@@ -284,44 +290,7 @@ class _DrawingPainter extends CustomPainter {
     canvas.drawPath(path, paint);
   }
 
-  void _paintDecoration(Canvas canvas, deco.Decoration d, template) {
-    void draw() {
-      switch (d.type) {
-        case deco.DecorationType.star:
-          _drawStarShape(canvas, d.position, d.size, d.color);
-          break;
-        case deco.DecorationType.glitter:
-          // alte Stempel-Dekoration — als kleine Punkte
-          for (var i = 0; i < 6; i++) {
-            final a = i * 1.04;
-            canvas.drawCircle(
-              d.position + Offset(cos(a) * 6, sin(a) * 6),
-              2,
-              Paint()..color = d.color,
-            );
-          }
-          break;
-      }
-    }
-
-    final fieldId = d.fieldId;
-    if (fieldId != null && template != null) {
-      final field = template.fields
-          .where((f) => f.id == fieldId)
-          .cast<dynamic>()
-          .firstOrNull;
-      if (field != null) {
-        canvas.save();
-        canvas.clipPath(field.path as Path);
-        draw();
-        canvas.restore();
-        return;
-      }
-    }
-    draw();
-  }
-
-  void _paintOutline(Canvas canvas, template) {
+  void _paintOutline(Canvas canvas, SvgTemplate template) {
     final paint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2 / scale

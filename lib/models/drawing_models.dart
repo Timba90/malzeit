@@ -1,22 +1,14 @@
 import 'dart:ui';
 
-/// Ein einzelner Farbpunkt (Strich-Segment) auf der Leinwand.
+/// Ein einzelner Punkt eines Strichs.
+///
+/// Nur Position und Farbe sind pro Punkt nötig — alle anderen Eigenschaften
+/// (Breite, Radierer, Feld, Pinsel-Typ) gehören zum [DrawStroke].
 class DrawPoint {
   final Offset position;
   final Color color;
-  final double strokeWidth;
-  final bool isEraser;
 
-  /// Identität des Felds, in dem dieser Punkt gemalt wurde (null = Freier Modus).
-  final String? fieldId;
-
-  const DrawPoint({
-    required this.position,
-    required this.color,
-    required this.strokeWidth,
-    this.isEraser = false,
-    this.fieldId,
-  });
+  const DrawPoint({required this.position, required this.color});
 }
 
 /// Pinsel-Typ — bestimmt wie der Strich gerendert wird.
@@ -40,6 +32,8 @@ class DrawStroke {
   final Color color;
   final double strokeWidth;
   final bool isEraser;
+
+  /// Identität des Felds, in dem gemalt wurde (null = Freier Modus).
   final String? fieldId;
   final BrushType brushType;
 

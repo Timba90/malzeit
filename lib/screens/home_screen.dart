@@ -1,13 +1,17 @@
+import 'dart:convert' show utf8;
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 
 import '../models/svg_template.dart';
 import '../services/svg_service.dart';
 import '../state/drawing_provider.dart';
 import 'drawing_screen.dart';
+import 'gallery_screen.dart';
 
-/// Hauptmenü: Vorlagen nach Kategorien + "Frei malen".
+/// Hauptmenü: Vorlagen nach Kategorien + "Frei malen" + Galerie.
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
@@ -37,14 +41,26 @@ class HomeScreen extends StatelessWidget {
             icon: Icons.gesture,
             color: const Color(0xFF00897B),
             onTap: () {
-              context.read<DrawingProvider>().setTemplate(null);
-              context.read<DrawingProvider>().setMode(DrawMode.free);
+              final provider = context.read<DrawingProvider>();
+              provider.setTemplate(null);
+              provider.setMode(DrawMode.free);
               Navigator.of(context).push(
                 MaterialPageRoute(builder: (_) => const DrawingScreen()),
               );
             },
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
+          // Galerie
+          _bigCard(
+            context,
+            title: 'Meine Bilder',
+            icon: Icons.photo_library,
+            color: const Color(0xFFFB8C00),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const GalleryScreen()),
+            ),
+          ),
+          const SizedBox(height: 16),
           // Eigene SVG hochladen
           _bigCard(
             context,
@@ -53,7 +69,7 @@ class HomeScreen extends StatelessWidget {
             color: const Color(0xFF8E24AA),
             onTap: () => _uploadSvg(context),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 24),
           // Kategorien
           for (final entry in byCategory.entries) ...[
             Text(entry.key,
@@ -63,7 +79,7 @@ class HomeScreen extends StatelessWidget {
                     color: Color(0xFF5D4037))),
             const SizedBox(height: 10),
             SizedBox(
-              height: 140,
+              height: 160,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 itemCount: entry.value.length,
@@ -91,29 +107,48 @@ class HomeScreen extends StatelessWidget {
     if (bytes == null) return;
 
     try {
-      final raw = String.fromCharCodes(bytes);
+      // UTF-8 dekodieren, damit Umlaute u. ä. korrekt ankommen
+      final raw = utf8.decode(bytes, allowMalformed: true);
       final template = SvgService().loadUserTemplate(raw, file.name);
       if (!context.mounted) return;
-      final provider = context.read<DrawingProvider>();
-      provider.setTemplate(template);
-      provider.setMode(DrawMode.fields);
-      Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const DrawingScreen()),
-      );
+      _openTemplate(context, template);
     } on SvgTemplateException catch (e) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message), backgroundColor: Colors.red),
-      );
+      _showError(context, e.message);
     } catch (_) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Diese Datei konnte nicht gelesen werden.'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      _showError(context, 'Diese Datei konnte nicht gelesen werden.');
     }
+  }
+
+  Future<void> _openAssetTemplate(
+      BuildContext context, TemplateInfo info) async {
+    try {
+      final template = await SvgService().loadTemplate(info);
+      if (!context.mounted) return;
+      _openTemplate(context, template);
+    } on SvgTemplateException catch (e) {
+      if (!context.mounted) return;
+      _showError(context, e.message);
+    } catch (_) {
+      if (!context.mounted) return;
+      _showError(context, 'Die Vorlage konnte nicht geladen werden.');
+    }
+  }
+
+  void _openTemplate(BuildContext context, SvgTemplate template) {
+    final provider = context.read<DrawingProvider>();
+    provider.setTemplate(template);
+    provider.setMode(DrawMode.fields);
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const DrawingScreen()),
+    );
+  }
+
+  void _showError(BuildContext context, String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: Colors.red),
+    );
   }
 
   Widget _templateCard(BuildContext context, TemplateInfo info) {
@@ -123,23 +158,20 @@ class HomeScreen extends StatelessWidget {
       elevation: 2,
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
-        onTap: () async {
-          final provider = context.read<DrawingProvider>();
-          final template = await SvgService().loadTemplate(info);
-          provider.setTemplate(template);
-          provider.setMode(DrawMode.fields);
-          if (!context.mounted) return;
-          Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const DrawingScreen()),
-          );
-        },
+        onTap: () => _openAssetTemplate(context, info),
         child: Container(
-          width: 140,
+          width: 150,
           padding: const EdgeInsets.all(12),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.image, size: 56, color: Color(0xFFFB8C00)),
+              Expanded(
+                child: SvgPicture.asset(
+                  info.assetPath,
+                  placeholderBuilder: (_) => const Icon(Icons.image,
+                      size: 56, color: Color(0xFFFB8C00)),
+                ),
+              ),
               const SizedBox(height: 10),
               Text(info.name,
                   textAlign: TextAlign.center,
@@ -166,16 +198,18 @@ class HomeScreen extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 24),
+          padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 24),
           child: Row(
             children: [
-              Icon(icon, size: 48, color: Colors.white),
+              Icon(icon, size: 44, color: Colors.white),
               const SizedBox(width: 20),
-              Text(title,
-                  style: const TextStyle(
-                      fontSize: 26,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white)),
+              Expanded(
+                child: Text(title,
+                    style: const TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white)),
+              ),
             ],
           ),
         ),

@@ -64,10 +64,17 @@ class _DrawingScreenState extends State<DrawingScreen> {
                       ),
                     ),
                     if (provider.mode == DrawMode.fields)
-                      Text(
-                        'Feld: ${provider.selectedFieldId ?? '-'}',
-                        style: const TextStyle(
-                            fontSize: 14, color: Color(0xFF1E88E5)),
+                      const Row(
+                        children: [
+                          Icon(Icons.touch_app,
+                              size: 18, color: Color(0xFF1E88E5)),
+                          SizedBox(width: 4),
+                          Text(
+                            'Tippe auf ein Feld zum Ausmalen',
+                            style: TextStyle(
+                                fontSize: 14, color: Color(0xFF1E88E5)),
+                          ),
+                        ],
                       ),
                   ],
                 ),

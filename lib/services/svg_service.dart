@@ -52,9 +52,32 @@ class SvgService {
         assetPath: '${templateBasePath}blumen/blume.svg'),
   ];
 
+  /// Lädt eine mitgelieferte Vorlage aus den Assets.
+  ///
+  /// Manche Web-Deploys liefern Asset-Keys mit doppeltem bzw. fehlendem
+  /// "assets/"-Präfix aus — deshalb werden Pfad-Varianten durchprobiert.
   Future<SvgTemplate> loadTemplate(TemplateInfo info) async {
-    final raw = await rootBundle.loadString(info.assetPath);
+    final raw = await _loadAssetString(info.assetPath);
     return parseTemplate(raw, info);
+  }
+
+  Future<String> _loadAssetString(String assetPath) async {
+    final candidates = <String>[
+      assetPath,
+      'assets/$assetPath',
+      if (assetPath.startsWith('assets/'))
+        assetPath.substring('assets/'.length),
+    ];
+    Object? lastError;
+    for (final path in candidates) {
+      try {
+        return await rootBundle.loadString(path);
+      } catch (e) {
+        lastError = e;
+      }
+    }
+    throw SvgTemplateException(
+        'Vorlage konnte nicht geladen werden ($assetPath): $lastError');
   }
 
   /// Lädt eine eigene SVG-Datei (vom Nutzer hochgeladen) als Vorlage.
@@ -75,7 +98,13 @@ class SvgService {
 
   /// Parst ein SVG (aus String) und extrahiert Felder, Ebenen und viewBox.
   SvgTemplate parseTemplate(String rawSvg, TemplateInfo info) {
-    final doc = XmlDocument.parse(rawSvg);
+    final XmlDocument doc;
+    try {
+      doc = XmlDocument.parse(rawSvg);
+    } on XmlException {
+      throw const SvgTemplateException(
+          'Diese Datei ist kein gültiges SVG-Bild.');
+    }
     final svgRoot = doc.rootElement;
 
     // viewBox ermitteln
