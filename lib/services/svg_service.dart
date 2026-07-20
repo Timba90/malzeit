@@ -46,6 +46,10 @@ class SvgService {
         name: 'Schlange',
         category: 'Schlangen',
         assetPath: '${templateBasePath}schlangen/schlange.svg'),
+    TemplateInfo(
+        name: 'Blume',
+        category: 'Pflanzen',
+        assetPath: '${templateBasePath}blumen/blume.svg'),
   ];
 
   Future<SvgTemplate> loadTemplate(TemplateInfo info) async {

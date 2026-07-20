@@ -190,11 +190,11 @@ class DrawingProvider extends ChangeNotifier {
   void extendStroke(Offset svgPoint) {
     if (_activeStroke == null) return;
 
-    // Für Regenbogen-Pinsel: Farbe pro Punkt rotieren
+    // Für Regenbogen-Pinsel: HSL-Hue kontinuierlich rotieren (wie rainbowCanvas)
     Color pointColor = _currentColor;
     if (_activeStroke!.brushType == BrushType.rainbow) {
-      final idx = _activeStroke!.points.length % rainbowColors.length;
-      pointColor = rainbowColors[idx];
+      final hue = (_activeStroke!.points.length * 4.0) % 360.0;
+      pointColor = HSVColor.fromAHSV(1.0, hue, 1.0, 1.0).toColor();
     }
 
     _activeStroke!.points.add(DrawPoint(

@@ -91,6 +91,7 @@ flutter:
     - assets/svg/templates/dinos/
     - assets/svg/templates/autos/
     - assets/svg/templates/schlangen/
+    - assets/svg/templates/blumen/
     - assets/svg/categories/
     
   # An image asset can refer to one or more resolution-specific "variants", see
