@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../models/drawing_models.dart';
 import '../state/drawing_provider.dart';
 
 /// Untere Werkzeugleiste: Werkzeuge, Farben, Aktionen.
-/// Kindgerecht: große Buttons, klare Symbole, keine Text-Menüs.
+/// Kindgerecht: große Buttons, klare Symbole.
 class DrawingToolbar extends StatelessWidget {
   final VoidCallback? onSave;
   final VoidCallback? onBack;
@@ -21,7 +22,7 @@ class DrawingToolbar extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Zeile 1: Werkzeuge + Modus + Aktionen
+          // Zeile 1: Werkzeuge + Aktionen
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
@@ -29,8 +30,37 @@ class DrawingToolbar extends StatelessWidget {
                 context,
                 icon: Icons.brush,
                 label: 'Pinsel',
-                selected: provider.currentTool == Tool.brush,
-                onTap: () => provider.setTool(Tool.brush),
+                selected: provider.currentTool == Tool.brush &&
+                    provider.brushType == BrushType.solid,
+                onTap: () {
+                  provider.setTool(Tool.brush);
+                  provider.setBrushType(BrushType.solid);
+                },
+              ),
+              _toolButton(
+                context,
+                icon: Icons.star,
+                label: 'Sterne',
+                selected: provider.currentTool == Tool.brush &&
+                    provider.brushType == BrushType.star,
+                onTap: () => provider.selectStarBrush(),
+              ),
+              _toolButton(
+                context,
+                icon: Icons.auto_awesome,
+                label: 'Glitzer',
+                selected: provider.currentTool == Tool.brush &&
+                    provider.brushType == BrushType.glitter,
+                onTap: () => provider.selectGlitterBrush(),
+              ),
+              _toolButton(
+                context,
+                icon: Icons.wb_sunny_outlined,
+                label: 'Regenbogen',
+                selected: provider.currentTool == Tool.brush &&
+                    provider.brushType == BrushType.rainbow,
+                onTap: () => provider.selectRainbow(),
+                rainbowBorder: true,
               ),
               _toolButton(
                 context,
@@ -38,20 +68,6 @@ class DrawingToolbar extends StatelessWidget {
                 label: 'Radierer',
                 selected: provider.currentTool == Tool.eraser,
                 onTap: () => provider.setTool(Tool.eraser),
-              ),
-              _toolButton(
-                context,
-                icon: Icons.star,
-                label: 'Sterne',
-                selected: provider.currentTool == Tool.star,
-                onTap: () => provider.setTool(Tool.star),
-              ),
-              _toolButton(
-                context,
-                icon: Icons.auto_awesome,
-                label: 'Glitzer',
-                selected: provider.currentTool == Tool.glitter,
-                onTap: () => provider.setTool(Tool.glitter),
               ),
               _modeToggle(context, provider),
               _actionButton(
@@ -87,7 +103,8 @@ class DrawingToolbar extends StatelessWidget {
               itemBuilder: (context, i) {
                 final color = DrawingProvider.palette[i];
                 final selected = provider.currentColor.value == color.value &&
-                    provider.currentTool != Tool.eraser;
+                    provider.currentTool != Tool.eraser &&
+                    provider.brushType != BrushType.rainbow;
                 return GestureDetector(
                   onTap: () => provider.setColor(color),
                   child: Container(
@@ -119,14 +136,46 @@ class DrawingToolbar extends StatelessWidget {
     required String label,
     required bool selected,
     required VoidCallback onTap,
+    bool rainbowBorder = false,
   }) {
-    return _baseButton(
-      icon: icon,
-      label: label,
-      background:
-          selected ? const Color(0xFF1E88E5) : const Color(0xFFFFE0B2),
-      foreground: selected ? Colors.white : const Color(0xFF5D4037),
-      onTap: onTap,
+    final bg = selected
+        ? const Color(0xFF1E88E5)
+        : rainbowBorder
+            ? const Color(0xFFFFE0B2)
+            : const Color(0xFFFFE0B2);
+    final fg = selected ? Colors.white : const Color(0xFF5D4037);
+
+    return Material(
+      color: bg,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: onTap,
+        child: Container(
+          decoration: rainbowBorder && !selected
+              ? BoxDecoration(
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    width: 3,
+                    color: const Color(0xFF1E88E5),
+                  ),
+                )
+              : null,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, color: fg, size: 26),
+              const SizedBox(height: 2),
+              Text(label,
+                  style: TextStyle(
+                      color: fg,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold)),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -136,24 +185,8 @@ class DrawingToolbar extends StatelessWidget {
     required Color color,
     required VoidCallback onTap,
   }) {
-    return _baseButton(
-      icon: icon,
-      label: label,
-      background: color,
-      foreground: Colors.white,
-      onTap: onTap,
-    );
-  }
-
-  Widget _baseButton({
-    required IconData icon,
-    required String label,
-    required Color background,
-    required Color foreground,
-    required VoidCallback onTap,
-  }) {
     return Material(
-      color: background,
+      color: color,
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         borderRadius: BorderRadius.circular(14),
@@ -163,11 +196,11 @@ class DrawingToolbar extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, color: foreground, size: 26),
+              Icon(icon, color: Colors.white, size: 26),
               const SizedBox(height: 2),
               Text(label,
-                  style: TextStyle(
-                      color: foreground,
+                  style: const TextStyle(
+                      color: Colors.white,
                       fontSize: 11,
                       fontWeight: FontWeight.bold)),
             ],
@@ -184,8 +217,7 @@ class DrawingToolbar extends StatelessWidget {
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         borderRadius: BorderRadius.circular(14),
-        onTap: () => provider
-            .setMode(isFields ? DrawMode.free : DrawMode.fields),
+        onTap: () => provider.setMode(isFields ? DrawMode.free : DrawMode.fields),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           child: Column(
