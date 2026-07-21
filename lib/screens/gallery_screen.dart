@@ -85,6 +85,20 @@ class _GalleryScreenState extends State<GalleryScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFFFF8E1),
       appBar: AppBar(
+        leading: Padding(
+          padding: const EdgeInsets.all(6),
+          child: Material(
+            color: const Color(0xFFFDD835),
+            shape: const CircleBorder(),
+            elevation: 2,
+            child: InkWell(
+              customBorder: const CircleBorder(),
+              onTap: () => Navigator.of(context).pop(),
+              child: const Icon(Icons.arrow_back_rounded,
+                  color: Color(0xFF5D4037), size: 28),
+            ),
+          ),
+        ),
         title: const Text('Meine Bilder',
             style: TextStyle(fontWeight: FontWeight.bold)),
         backgroundColor: const Color(0xFFFB8C00),

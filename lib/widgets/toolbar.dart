@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../models/drawing_models.dart';
+import '../painting/pattern_painter.dart';
 import '../state/drawing_provider.dart';
 
-/// Untere Werkzeugleiste: Werkzeuge, Pinselgröße, Farben, Aktionen.
-/// Kindgerecht: große Buttons (min. 56px), klare Symbole, kein Überlaufen —
-/// der Werkzeugbereich scrollt horizontal, die Aktionen bleiben fest sichtbar.
+/// Untere Werkzeugleiste: Werkzeuge, Pinselgröße, Muster, Farben, Aktionen.
+/// Kindgerecht: große Buttons (min. 56px), jedes Werkzeug mit eigener
+/// Leuchtfarbe, runde Aktions-Buttons, kein Überlaufen — der Werkzeugbereich
+/// scrollt horizontal, die Aktionen bleiben fest sichtbar.
 class DrawingToolbar extends StatelessWidget {
   final VoidCallback? onSave;
   final VoidCallback? onBack;
@@ -16,6 +18,12 @@ class DrawingToolbar extends StatelessWidget {
   static const _animDuration = Duration(milliseconds: 200);
   static const _selectedColor = Color(0xFF1E88E5);
 
+  // Leuchtfarben der Werkzeuge
+  static const _brushColor = Color(0xFFFF9800); // Orange
+  static const _fillColor = Color(0xFF9C27B0); // Lila
+  static const _starColor = Color(0xFFEC407A); // Pink
+  static const _eraserColor = Color(0xFF4FC3F7); // Hellblau
+
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<DrawingProvider>();
@@ -23,6 +31,7 @@ class DrawingToolbar extends StatelessWidget {
     return Container(
       decoration: const BoxDecoration(
         color: Color(0xFFFFF8E1),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
         boxShadow: [
           BoxShadow(
             color: Colors.black12,
@@ -46,13 +55,22 @@ class DrawingToolbar extends StatelessWidget {
                       _ToolButton(
                         icon: Icons.brush,
                         label: 'Pinsel',
+                        color: _brushColor,
                         selected: provider.currentTool == Tool.brush &&
                             provider.brushType == BrushType.solid,
                         onTap: () => provider.setBrushType(BrushType.solid),
                       ),
                       _ToolButton(
+                        icon: Icons.format_color_fill,
+                        label: 'Füllen',
+                        color: _fillColor,
+                        selected: provider.currentTool == Tool.fill,
+                        onTap: () => provider.setTool(Tool.fill),
+                      ),
+                      _ToolButton(
                         icon: Icons.star,
                         label: 'Sterne',
+                        color: _starColor,
                         selected: provider.currentTool == Tool.brush &&
                             provider.brushType == BrushType.star,
                         onTap: () => provider.setBrushType(BrushType.star),
@@ -60,13 +78,16 @@ class DrawingToolbar extends StatelessWidget {
                       _ToolButton(
                         icon: Icons.auto_awesome,
                         label: 'Glitzer',
+                        color: _starColor,
                         selected: provider.currentTool == Tool.brush &&
                             provider.brushType == BrushType.glitter,
                         onTap: () => provider.setBrushType(BrushType.glitter),
+                        rainbow: true,
                       ),
                       _ToolButton(
                         icon: Icons.looks,
                         label: 'Regenbogen',
+                        color: _selectedColor,
                         selected: provider.currentTool == Tool.brush &&
                             provider.brushType == BrushType.rainbow,
                         onTap: () => provider.setBrushType(BrushType.rainbow),
@@ -75,6 +96,7 @@ class DrawingToolbar extends StatelessWidget {
                       _ToolButton(
                         icon: Icons.auto_fix_off,
                         label: 'Radierer',
+                        color: _eraserColor,
                         selected: provider.currentTool == Tool.eraser,
                         onTap: () => provider.setTool(Tool.eraser),
                       ),
@@ -84,15 +106,15 @@ class DrawingToolbar extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 4),
-              // Feste Aktionen: immer sichtbar
-              _ActionButton(
+              // Feste Aktionen: immer sichtbar, groß und rund
+              _RoundActionButton(
                 icon: Icons.undo,
-                label: 'Zurück-\nnehmen',
+                label: 'Zurück',
                 color: const Color(0xFF8E24AA),
                 enabled: provider.canUndo,
                 onTap: provider.undo,
               ),
-              _ActionButton(
+              _RoundActionButton(
                 icon: Icons.delete_outline,
                 label: 'Leeren',
                 color: const Color(0xFFE53935),
@@ -100,24 +122,27 @@ class DrawingToolbar extends StatelessWidget {
                 onTap: () => _confirmClear(context, provider),
               ),
               if (onSave != null)
-                _ActionButton(
+                _RoundActionButton(
                   icon: Icons.save_alt,
                   label: 'Sichern',
                   color: const Color(0xFF43A047),
                   onTap: onSave,
                 ),
               if (onBack != null)
-                _ActionButton(
+                _RoundActionButton(
                   icon: Icons.home,
                   label: 'Menü',
-                  color: const Color(0xFF1E88E5),
+                  color: const Color(0xFFFDD835), // Gelb
+                  iconColor: const Color(0xFF5D4037),
                   onTap: onBack,
                 ),
             ],
           ),
           const SizedBox(height: 6),
-          // Zeile 2: Pinselgröße
-          _BrushSizeSlider(provider),
+          // Zeile 2: Pinselgröße (nur für Pinsel/Radierer relevant)
+          if (provider.currentTool != Tool.fill) _BrushSizeSlider(provider),
+          // Zeile 2b: Muster-Auswahl (nur beim Füll-Werkzeug)
+          if (provider.currentTool == Tool.fill) _PatternRow(provider),
           const SizedBox(height: 6),
           // Zeile 3: Farbpalette
           SizedBox(
@@ -197,10 +222,11 @@ class DrawingToolbar extends StatelessWidget {
   }
 }
 
-/// Werkzeug-Button mit Auswahl-Animation.
+/// Werkzeug-Button mit eigener Leuchtfarbe und Auswahl-Animation.
 class _ToolButton extends StatelessWidget {
   final IconData icon;
   final String label;
+  final Color color;
   final bool selected;
   final VoidCallback onTap;
   final bool rainbow;
@@ -208,6 +234,7 @@ class _ToolButton extends StatelessWidget {
   const _ToolButton({
     required this.icon,
     required this.label,
+    required this.color,
     required this.selected,
     required this.onTap,
     this.rainbow = false,
@@ -215,46 +242,70 @@ class _ToolButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final fg = selected ? Colors.white : const Color(0xFF5D4037);
+    final fg =
+        selected ? Colors.white : Color.lerp(color, Colors.black, 0.25)!;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 3),
       child: GestureDetector(
         onTap: onTap,
         child: AnimatedScale(
-          scale: selected ? 1.06 : 1.0,
+          scale: selected ? 1.08 : 1.0,
           duration: DrawingToolbar._animDuration,
           child: AnimatedContainer(
             duration: DrawingToolbar._animDuration,
             constraints: const BoxConstraints(minWidth: 64, minHeight: 56),
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
-              color: selected
-                  ? DrawingToolbar._selectedColor
-                  : const Color(0xFFFFE0B2),
-              borderRadius: BorderRadius.circular(16),
-              gradient: rainbow && !selected
-                  ? const LinearGradient(colors: [
-                      Color(0xFFFFCDD2),
-                      Color(0xFFFFF9C4),
-                      Color(0xFFC8E6C9),
-                      Color(0xFFBBDEFB),
-                      Color(0xFFE1BEE7),
-                    ])
+              color: rainbow
+                  ? null
+                  : selected
+                      ? color
+                      : Color.lerp(Colors.white, color, 0.18),
+              borderRadius: BorderRadius.circular(22),
+              gradient: rainbow
+                  ? LinearGradient(
+                      colors: selected
+                          ? const [
+                              Color(0xFFF44336),
+                              Color(0xFFFF9800),
+                              Color(0xFFFFEB3B),
+                              Color(0xFF4CAF50),
+                              Color(0xFF2196F3),
+                              Color(0xFF9C27B0),
+                            ]
+                          : const [
+                              Color(0xFFFFCDD2),
+                              Color(0xFFFFF9C4),
+                              Color(0xFFC8E6C9),
+                              Color(0xFFBBDEFB),
+                              Color(0xFFE1BEE7),
+                            ])
                   : null,
               boxShadow: selected
-                  ? const [BoxShadow(color: Colors.black26, blurRadius: 6)]
+                  ? [
+                      BoxShadow(
+                          color: color.withOpacity(0.55),
+                          blurRadius: 10,
+                          spreadRadius: 1),
+                    ]
                   : null,
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(icon, color: fg, size: 28),
+                Icon(icon,
+                    color: rainbow && !selected
+                        ? const Color(0xFF5D4037)
+                        : fg,
+                    size: 28),
                 const SizedBox(height: 2),
                 Text(label,
                     style: TextStyle(
-                        color: fg,
+                        color: rainbow && !selected
+                            ? const Color(0xFF5D4037)
+                            : fg,
                         fontSize: 11,
                         fontWeight: FontWeight.bold)),
               ],
@@ -266,56 +317,148 @@ class _ToolButton extends StatelessWidget {
   }
 }
 
-/// Aktions-Button (Undo, Leeren, Sichern, Menü).
-class _ActionButton extends StatelessWidget {
+/// Großer runder Aktions-Button (Undo, Leeren, Sichern, Menü).
+class _RoundActionButton extends StatelessWidget {
   final IconData icon;
   final String label;
   final Color color;
+  final Color iconColor;
   final VoidCallback? onTap;
   final bool enabled;
 
-  const _ActionButton({
+  const _RoundActionButton({
     required this.icon,
     required this.label,
     required this.color,
     required this.onTap,
+    this.iconColor = Colors.white,
     this.enabled = true,
   });
 
   @override
   Widget build(BuildContext context) {
     final active = enabled && onTap != null;
+    final bg = active ? color : Colors.grey.shade400;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 3),
-      child: Material(
-        color: active ? color : Colors.grey.shade400,
-        borderRadius: BorderRadius.circular(16),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: active ? onTap : null,
-          child: Container(
-            constraints: const BoxConstraints(minWidth: 60, minHeight: 56),
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(icon, color: Colors.white, size: 26),
-                const SizedBox(height: 2),
-                Text(label,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 10,
-                        height: 1.1,
-                        fontWeight: FontWeight.bold)),
-              ],
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Material(
+            color: bg,
+            shape: const CircleBorder(),
+            elevation: active ? 3 : 0,
+            child: InkWell(
+              customBorder: const CircleBorder(),
+              onTap: active ? onTap : null,
+              child: SizedBox(
+                width: 52,
+                height: 52,
+                child: Icon(icon,
+                    color: active ? iconColor : Colors.white, size: 26),
+              ),
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(label,
+              style: const TextStyle(
+                  color: Color(0xFF5D4037),
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold)),
+        ],
+      ),
+    );
+  }
+}
+
+/// Muster-Auswahl für das Füll-Werkzeug: "Nur Farbe" + 8 Muster als Kreise.
+class _PatternRow extends StatelessWidget {
+  final DrawingProvider provider;
+
+  const _PatternRow(this.provider);
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 56,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        children: [
+          _patternCircle(context, null),
+          for (final pattern in FillPattern.values)
+            _patternCircle(context, pattern),
+        ],
+      ),
+    );
+  }
+
+  Widget _patternCircle(BuildContext context, FillPattern? pattern) {
+    final selected = provider.fillPattern == pattern;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 5),
+      child: GestureDetector(
+        onTap: () => provider.setFillPattern(pattern),
+        child: Tooltip(
+          message: pattern == null ? 'Nur Farbe' : patternLabel(pattern),
+          child: AnimatedScale(
+            scale: selected ? 1.12 : 1.0,
+            duration: DrawingToolbar._animDuration,
+            child: AnimatedContainer(
+              duration: DrawingToolbar._animDuration,
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: selected
+                      ? DrawingToolbar._selectedColor
+                      : Colors.black26,
+                  width: selected ? 4 : 1.5,
+                ),
+                boxShadow: selected
+                    ? const [BoxShadow(color: Colors.black26, blurRadius: 6)]
+                    : null,
+              ),
+              child: ClipOval(
+                child: pattern == null
+                    ? Container(
+                        color: provider.currentColor,
+                        child: Icon(Icons.water_drop,
+                            size: 22,
+                            color: provider.currentColor.computeLuminance() >
+                                    0.5
+                                ? Colors.black38
+                                : Colors.white70),
+                      )
+                    : CustomPaint(
+                        painter: _PatternPreviewPainter(
+                            pattern, provider.currentColor),
+                      ),
+              ),
             ),
           ),
         ),
       ),
     );
   }
+}
+
+/// Kleine Vorschau eines Musters im Auswahl-Kreis.
+class _PatternPreviewPainter extends CustomPainter {
+  final FillPattern pattern;
+  final Color color;
+
+  _PatternPreviewPainter(this.pattern, this.color);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    paintPattern(canvas, Offset.zero & size, pattern, color, tile: 16);
+  }
+
+  @override
+  bool shouldRepaint(covariant _PatternPreviewPainter old) =>
+      old.pattern != pattern || old.color != color;
 }
 
 /// Umschalter Felder-Modus / Frei-Modus (nur mit Vorlage sinnvoll).
@@ -331,9 +474,9 @@ class _ModeToggle extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 3),
       child: Material(
         color: isFields ? const Color(0xFF8E24AA) : const Color(0xFF00897B),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(22),
         child: InkWell(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(22),
           onTap: () =>
               provider.setMode(isFields ? DrawMode.free : DrawMode.fields),
           child: Container(

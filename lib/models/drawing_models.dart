@@ -26,8 +26,25 @@ enum BrushType {
   rainbow,
 }
 
+/// Füll-Muster für das Farbeimer-Werkzeug (programmiert, keine Bilder).
+enum FillPattern {
+  dots,
+  stripes,
+  stars,
+  hearts,
+  checker,
+  scales,
+  rainbow,
+  flowers,
+}
+
+/// Basisklasse für alles, was auf der Leinwand landet (Undo-Historie).
+abstract class DrawAction {
+  const DrawAction();
+}
+
 /// Ein kompletter Strich, bestehend aus Punkten.
-class DrawStroke {
+class DrawStroke extends DrawAction {
   final List<DrawPoint> points;
   final Color color;
   final double strokeWidth;
@@ -45,4 +62,43 @@ class DrawStroke {
     this.fieldId,
     this.brushType = BrushType.solid,
   }) : points = points ?? [];
+}
+
+/// Füllung eines kompletten SVG-Felds (Farbeimer im Feld-Modus).
+class FieldFill extends DrawAction {
+  final String fieldId;
+  final Color color;
+
+  /// null = einfarbige Füllung.
+  final FillPattern? pattern;
+
+  const FieldFill({
+    required this.fieldId,
+    required this.color,
+    this.pattern,
+  });
+}
+
+/// Ergebnis eines Flood-Fills im Frei-Modus.
+///
+/// [mask] ist ein Raster-Bild (weiß = gefüllt, transparent = nicht gefüllt),
+/// das beim Zeichnen mit Farbe bzw. Muster gefüllt und über [rect]
+/// (SVG-Koordinaten) gelegt wird.
+class RasterFill extends DrawAction {
+  final Image mask;
+  final Rect rect;
+  final Color color;
+
+  /// null = einfarbige Füllung.
+  final FillPattern? pattern;
+
+  const RasterFill({
+    required this.mask,
+    required this.rect,
+    required this.color,
+    this.pattern,
+  });
+
+  /// Gibt den Bildspeicher der Maske frei (nach Undo/Leeren).
+  void dispose() => mask.dispose();
 }

@@ -154,10 +154,10 @@ class HomeScreen extends StatelessWidget {
   Widget _templateCard(BuildContext context, TemplateInfo info) {
     return Material(
       color: Colors.white,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(24),
       elevation: 2,
       child: InkWell(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(24),
         onTap: () => _openAssetTemplate(context, info),
         child: Container(
           width: 150,
@@ -193,9 +193,9 @@ class HomeScreen extends StatelessWidget {
   }) {
     return Material(
       color: color,
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(28),
       child: InkWell(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(28),
         onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 24),

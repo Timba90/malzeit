@@ -13,19 +13,24 @@ Einmaliger Kauf (10€), keine In-App-Käufe, keine Werbung.
 
 ## Architektur
 - `lib/main.dart` — App-Entry, ChangeNotifierProvider
-- `lib/models/` — DrawPoint, DrawStroke, BrushType, SvgField, SvgTemplate, SavedImage
-- `lib/state/drawing_provider.dart` — Zentraler State (Werkzeug, Farbe, Modi, Striche, Undo)
+- `lib/models/` — DrawAction (DrawStroke/FieldFill/RasterFill), DrawPoint, BrushType, FillPattern, SvgField, SvgTemplate, SavedImage
+- `lib/state/drawing_provider.dart` — Zentraler State (Werkzeug, Farbe, Muster, Modi, Aktions-Historie, Undo)
+- `lib/painting/action_painter.dart` — Gemeinsames Rendering aller DrawActions (Live-Canvas + Flood-Fill-Raster)
+- `lib/painting/pattern_painter.dart` — 8 programmierte Füll-Muster
 - `lib/services/svg_service.dart` — SVG-Parsing, Feld-Zerlegung, Template-Loading (mit Asset-Pfad-Fallback für Web)
+- `lib/services/flood_fill_service.dart` — Flood-Fill (Raster + BFS + Alpha-Maske) für Frei-Modus
 - `lib/services/save_service.dart` — PNG-Speicherung + Galerie (conditional import io/web)
 - `lib/services/canvas_capture.dart` — Gemeinsamer PNG-Capture-Helper
-- `lib/widgets/drawing_canvas.dart` — CustomPainter mit 4 BrushTypes
-- `lib/widgets/toolbar.dart` — Werkzeugleiste (scrollbar, Undo, Größen-Slider)
+- `lib/widgets/drawing_canvas.dart` — CustomPainter, Tap-Handling (Farbeimer) + Pan (Pinsel)
+- `lib/widgets/toolbar.dart` — Werkzeugleiste (bunte Werkzeug-Icons, Muster-Raster, runde Aktions-Buttons)
 - `lib/screens/` — splash, home (Kategorien), drawing, gallery
 - `assets/svg/templates/` — Ausmalvorlagen (Dinos, Autos, Schlangen, Blumen)
 
 ## Features
 - 4 Pinsel-Typen: solid, star (Sternen-Spur), glitter (Punkte-Spur), rainbow (HSV-Hue)
-- Radiergummi, Rückgängig (letzter Strich), einstellbare Pinselgröße (Slider mit Vorschau)
+- Füllwerkzeug (Farbeimer): Feld-Modus füllt getipptes SVG-Feld, Frei-Modus macht pixelbasierten Flood-Fill (Raster 800px, Toleranz-BFS, Ergebnis als Alpha-Masken-Image in der Undo-Historie)
+- 8 Füll-Muster (Punkte, Streifen, Sterne, Herzen, Karo, Schuppen, Regenbogen, Blumen) — programmiert via CustomPaint, kombinierbar mit jeder Palettenfarbe
+- Radiergummi, Rückgängig (letzte Aktion: Strich oder Füllung), einstellbare Pinselgröße (Slider mit Vorschau)
 - Zwei Modi: Frei malen / Feld-basiert (Striche werden auf SVG-Feld beschnitten)
 - SVG-Vorlagen: Parser zerlegt in Felder (path/rect/circle/ellipse/polygon) + Ebenen (data-layer)
 - 14-Farben-Palette (inkl. Hautton, Grau)

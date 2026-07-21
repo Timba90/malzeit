@@ -4,7 +4,7 @@ import '../models/drawing_models.dart';
 import '../models/svg_template.dart';
 
 /// Werkzeug, das gerade aktiv ist.
-enum Tool { brush, eraser }
+enum Tool { brush, eraser, fill }
 
 /// Mal-Modus der App.
 enum DrawMode { free, fields }
@@ -18,9 +18,15 @@ class DrawingProvider extends ChangeNotifier {
   double _strokeWidth = 14.0;
   DrawMode _mode = DrawMode.fields;
 
-  // ---- Leinwand-Inhalt ----
-  final List<DrawStroke> _strokes = [];
+  /// Muster für das Füll-Werkzeug (null = einfarbig).
+  FillPattern? _fillPattern;
+
+  // ---- Leinwand-Inhalt (Undo-Historie: Striche + Füllungen) ----
+  final List<DrawAction> _actions = [];
   DrawStroke? _activeStroke;
+
+  /// Läuft gerade eine (asynchrone) Flood-Fill-Berechnung?
+  bool _filling = false;
 
   // ---- Vorlage & Felder ----
   SvgTemplate? _template;
@@ -53,11 +59,13 @@ class DrawingProvider extends ChangeNotifier {
   Color get currentColor => _currentColor;
   double get strokeWidth => _strokeWidth;
   DrawMode get mode => _mode;
-  List<DrawStroke> get strokes => List.unmodifiable(_strokes);
+  FillPattern? get fillPattern => _fillPattern;
+  List<DrawAction> get actions => List.unmodifiable(_actions);
   DrawStroke? get activeStroke => _activeStroke;
+  bool get isFilling => _filling;
   SvgTemplate? get template => _template;
   String? get selectedFieldId => _selectedFieldId;
-  bool get canUndo => _strokes.isNotEmpty || _activeStroke != null;
+  bool get canUndo => _actions.isNotEmpty || _activeStroke != null;
   bool get hasContent => canUndo;
 
   SvgField? get selectedField {
@@ -82,12 +90,20 @@ class DrawingProvider extends ChangeNotifier {
 
   /// Farbe wählen. Der gewählte Pinsel-Typ bleibt erhalten, nur der
   /// Regenbogen-Pinsel (ignoriert Farben) wechselt zurück auf solid.
+  /// Das Füll-Werkzeug bleibt aktiv (Farbe wählen + tippen = füllen).
   void setColor(Color color) {
     _currentColor = color;
     if (_brushType == BrushType.rainbow) {
       _brushType = BrushType.solid;
     }
     if (_currentTool == Tool.eraser) _currentTool = Tool.brush;
+    notifyListeners();
+  }
+
+  /// Muster wählen (null = einfarbig) — aktiviert automatisch den Farbeimer.
+  void setFillPattern(FillPattern? pattern) {
+    _fillPattern = pattern;
+    _currentTool = Tool.fill;
     notifyListeners();
   }
 
@@ -131,8 +147,41 @@ class DrawingProvider extends ChangeNotifier {
     return false;
   }
 
+  // ---- Füllen (Farbeimer) ----
+
+  /// Füllt das aktuell gewählte Feld mit Farbe bzw. Muster.
+  void fillSelectedField() {
+    final field = selectedField;
+    if (field == null) return;
+    _actions.add(FieldFill(
+      fieldId: field.id,
+      color: _currentColor,
+      pattern: _fillPattern,
+    ));
+    notifyListeners();
+  }
+
+  /// Fügt ein fertig berechnetes Flood-Fill-Ergebnis hinzu (Frei-Modus).
+  void addRasterFill(RasterFill fill) {
+    _actions.add(fill);
+    notifyListeners();
+  }
+
+  /// Markiert Beginn/Ende einer asynchronen Füll-Berechnung
+  /// (verhindert doppelte Fills bei schnellem Tippen).
+  void beginFill() {
+    _filling = true;
+    notifyListeners();
+  }
+
+  void endFill() {
+    _filling = false;
+    notifyListeners();
+  }
+
   // ---- Malen ----
   void startStroke(Offset svgPoint) {
+    if (_currentTool == Tool.fill) return; // Füllen läuft über Tap
     if (_mode == DrawMode.fields && _selectedFieldId == null) return;
 
     final isEraser = _currentTool == Tool.eraser;
@@ -167,18 +216,19 @@ class DrawingProvider extends ChangeNotifier {
     final stroke = _activeStroke;
     if (stroke == null) return;
     if (stroke.points.isNotEmpty) {
-      _strokes.add(stroke);
+      _actions.add(stroke);
     }
     _activeStroke = null;
     notifyListeners();
   }
 
-  /// Macht den letzten Strich rückgängig.
+  /// Macht die letzte Aktion (Strich oder Füllung) rückgängig.
   void undo() {
     if (_activeStroke != null) {
       _activeStroke = null;
-    } else if (_strokes.isNotEmpty) {
-      _strokes.removeLast();
+    } else if (_actions.isNotEmpty) {
+      final removed = _actions.removeLast();
+      if (removed is RasterFill) removed.dispose();
     } else {
       return;
     }
@@ -187,7 +237,10 @@ class DrawingProvider extends ChangeNotifier {
 
   /// Löscht das gesamte Bild.
   void clearAll() {
-    _strokes.clear();
+    for (final action in _actions) {
+      if (action is RasterFill) action.dispose();
+    }
+    _actions.clear();
     _activeStroke = null;
     notifyListeners();
   }
